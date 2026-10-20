@@ -2,7 +2,7 @@
 
 A logistic regression model trained on the Pima Indians Diabetes dataset, with a single-file web page that runs the model in the browser. No server, no data leaves the page.
 
-**Live demo:** `https://<NilayKnt>.github.io/diabetes-risk-predictor/` (after you enable GitHub Pages, see below)
+**Live demo:** `https://nilayknt.github.io/diabetes-risk-predictor/` (after you enable GitHub Pages, see below)
 
 > **Not medical advice.** This project was built for machine learning education. The dataset covers women of Pima Indian heritage aged 21 and over, so results may not apply to other groups.
 
