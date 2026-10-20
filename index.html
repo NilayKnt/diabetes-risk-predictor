@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diabetes Risk Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: form on the left, sticky result panel on the right (score scale + per-feature contributions). Stacks on narrow screens. */
+:root {
+  color-scheme: light;
+  --bg: #F3F6F8;
+  --surface: #FFFFFF;
+  --surface-2: #EAF0F4;
+  --ink: #12202B;
+  --muted: #566775;
+  --line: #D3DDE4;
+  --accent: #0B6FA8;
+  --accent-ink: #FFFFFF;
+  --low: #2E8B57;
+  --mid: #C98A12;
+  --high: #C4402F;
+  --up: #C4402F;
+  --down: #0B6FA8;
+  --focus: #0B6FA8;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1A22;
+    --surface: #16242E;
+    --surface-2: #1D2F3B;
+    --ink: #E6EEF3;
+    --muted: #93A6B3;
+    --line: #2B4150;
+    --accent: #4DB1E8;
+    --accent-ink: #0B1720;
+    --low: #4FBF83;
+    --mid: #E2AC3F;
+    --high: #EE7767;
+    --up: #EE7767;
+    --down: #4DB1E8;
+    --focus: #4DB1E8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1A22;
+  --surface: #16242E;
+  --surface-2: #1D2F3B;
+  --ink: #E6EEF3;
+  --muted: #93A6B3;
+  --line: #2B4150;
+  --accent: #4DB1E8;
+  --accent-ink: #0B1720;
+  --low: #4FBF83;
+  --mid: #E2AC3F;
+  --high: #EE7767;
+  --up: #EE7767;
+  --down: #4DB1E8;
+  --focus: #4DB1E8;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+header { display: flex; flex-direction: column; gap: 10px; }
+.tag {
+  align-self: flex-start;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px;
+}
+h1 {
+  font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 5vw, 42px);
+  line-height: 1.08; letter-spacing: -0.015em; margin: 0; text-wrap: balance;
+}
+.lede { margin: 0; max-width: 62ch; color: var(--muted); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: 24px; align-items: start; }
+.result { position: sticky; top: 16px; }
+@media (max-width: 860px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .result { position: static; order: -1; }
+}
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 18px; margin: 0; letter-spacing: -0.005em; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.sample-note { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
+
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 520px) { .fields { grid-template-columns: minmax(0, 1fr); } }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.field .en { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--muted); }
+.input-row { display: flex; align-items: stretch; }
+.input-row input {
+  flex: 1; min-width: 0; font: inherit; font-family: var(--font-mono); font-size: 16px;
+  color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-right: 0;
+  border-radius: 6px 0 0 6px; padding: 8px 10px;
+}
+.input-row .unit {
+  display: flex; align-items: center; padding: 0 10px; font-size: 12px; color: var(--muted);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 0 6px 6px 0; white-space: nowrap;
+}
+input:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.hint { font-size: 12px; color: var(--muted); min-height: 1.4em; }
+.hint.warn { color: var(--mid); }
+
+.actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+button {
+  font: inherit; font-weight: 500; font-size: 14px; border-radius: 6px; padding: 8px 14px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button:hover { border-color: var(--accent); }
+
+.score { display: flex; align-items: baseline; gap: 10px; margin: 8px 0 14px; flex-wrap: wrap; }
+.score .num { font-family: var(--font-display); font-weight: 700; font-size: 64px; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.score .pct { font-family: var(--font-display); font-size: 28px; color: var(--muted); }
+.badge { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.badge.low { color: var(--low); } .badge.mid { color: var(--mid); } .badge.high { color: var(--high); }
+
+.scale { position: relative; height: 12px; border-radius: 6px; display: flex; margin: 18px 0 6px; }
+.scale span { display: block; height: 100%; opacity: .85; }
+.scale .z1 { width: 35%; background: var(--low); border-radius: 6px 0 0 6px; }
+.scale .z2 { width: 30%; background: var(--mid); }
+.scale .z3 { width: 35%; background: var(--high); border-radius: 0 6px 6px 0; }
+.marker {
+  position: absolute; top: -6px; width: 4px; height: 24px; background: var(--ink); border-radius: 2px;
+  transform: translateX(-50%); box-shadow: 0 0 0 2px var(--surface); transition: left .25s ease;
+}
+.ticks { position: relative; height: 16px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ticks span { position: absolute; top: 0; transform: translateX(-50%); }
+.ticks span:first-child { transform: none; }
+.ticks span:last-child { transform: translateX(-100%); }
+
+.contrib-title { margin: 22px 0 4px; font-weight: 600; font-size: 14px; }
+.contrib-sub { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+.contrib { display: flex; flex-direction: column; gap: 6px; }
+.row { display: grid; grid-template-columns: 112px minmax(0, 1fr) 52px; gap: 8px; align-items: center; font-size: 13px; }
+.row .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .name i { font-style: normal; color: var(--muted); font-size: 11px; }
+.track { position: relative; height: 14px; background: var(--surface-2); border-radius: 3px; }
+.track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
+.fill { position: absolute; top: 2px; bottom: 2px; border-radius: 2px; transition: width .25s ease, left .25s ease; }
+.fill.up { background: var(--up); }
+.fill.down { background: var(--down); }
+.row .val { font-family: var(--font-mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.legend { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 6px; }
+.filled-note { font-size: 12px; color: var(--muted); margin: 14px 0 0; }
+
+.model { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px 24px; margin: 14px 0 0; }
+.stat dt { font-size: 12px; color: var(--muted); }
+.stat dd { margin: 2px 0 0; font-family: var(--font-mono); font-size: 18px; font-variant-numeric: tabular-nums; }
+.stat dd small { font-family: var(--font-body); font-size: 12px; color: var(--muted); }
+.model-text { margin: 16px 0 0; font-size: 13px; color: var(--muted); max-width: 78ch; }
+.model-text + .model-text { margin-top: 8px; }
+.disclaimer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; max-width: 80ch; margin: 0; }
+.disclaimer strong { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) { .marker, .fill { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="tag">Educational model</span>
+    <h1>Diabetes Risk Predictor</h1>
+    <p class="lede">A logistic regression model trained on the Pima Indians Diabetes dataset. Enter the measurements and the risk score is computed instantly in your browser. No data is sent anywhere.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="h-form">
+      <div class="panel-head"><h2 id="h-form">Measurements</h2></div>
+      <p class="sample-note" id="sampleNote">Example values are loaded. Empty fields use the training-data median.</p>
+      <form id="form" class="fields" autocomplete="off"></form>
+      <div class="actions">
+        <button type="button" id="btnSample" class="primary">Load example values</button>
+        <button type="button" id="btnClear">Clear fields</button>
+      </div>
+    </section>
+
+    <aside class="panel result" aria-labelledby="h-res" aria-live="polite">
+      <div class="panel-head"><h2 id="h-res">Risk score</h2></div>
+      <div class="score">
+        <span class="num" id="num">0</span><span class="pct">%</span>
+        <span class="badge" id="badge">Low</span>
+      </div>
+      <div class="scale" aria-hidden="true">
+        <span class="z1"></span><span class="z2"></span><span class="z3"></span>
+        <div class="marker" id="marker" style="left:0%"></div>
+      </div>
+      <div class="ticks" aria-hidden="true"><span style="left:0">0</span><span style="left:35%">35</span><span style="left:65%">65</span><span style="left:100%">100</span></div>
+
+      <p class="contrib-title">What drives the score?</p>
+      <p class="contrib-sub">How much each value pushes the score up (right) or down (left), in log-odds.</p>
+      <div class="contrib" id="contrib"></div>
+      <div class="legend"><span>&larr; lowers</span><span>raises &rarr;</span></div>
+      <p class="filled-note" id="filledNote"></p>
+    </aside>
+  </div>
+
+  <section class="panel" aria-labelledby="h-model">
+    <h2 id="h-model">About the model</h2>
+    <dl class="model">
+      <div class="stat"><dt>CV ROC-AUC (5-fold, grid search)</dt><dd id="m-cvauc">-</dd></div>
+      <div class="stat"><dt>Repeated CV ROC-AUC (5x5)</dt><dd id="m-repauc">-</dd></div>
+      <div class="stat"><dt>Repeated CV accuracy (5x5)</dt><dd id="m-repacc">-</dd></div>
+      <div class="stat"><dt>Hold-out test set (20%)</dt><dd id="m-test">-</dd></div>
+    </dl>
+    <p class="model-text" id="m-desc"></p>
+    <p class="model-text">Because the class weights are balanced, the score is a model output tuned to catch the positive class, not a calibrated probability. The Low (0-35), Medium (35-65) and High (65-100) bands apply to this score.</p>
+  </section>
+
+  <p class="disclaimer"><strong>Not medical advice.</strong> This page was built for machine learning education. The dataset comes from women of Pima Indian heritage aged 21 and over, so results may not apply to other groups. Talk to a doctor about any health decision.</p>
+</div>
+
+<script>
+// Replaced automatically by `python train.py`.
+const MODEL = /*MODEL_START*/{"features": ["Pregnancies", "Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI", "DiabetesPedigreeFunction", "Age"], "median": [3.0, 117.0, 72.0, 29.0, 125.0, 32.3, 0.3725, 29.0], "mean": [3.8450520833333335, 121.65625, 72.38671875, 29.108072916666668, 140.671875, 32.45520833333333, 0.47187630208333325, 33.240885416666664], "scale": [3.3673836124089958, 30.418462775166116, 12.088763750899638, 8.785495707586254, 86.32680240314153, 6.870699333517456, 0.3311128160286291, 11.752572645994181], "coef": [0.3921545086257847, 1.1004233618586803, -0.043364316162522565, 0.013284829469228628, -0.029718722727601364, 0.6159511801558948, 0.28955662914899394, 0.1557018972870707], "intercept": -0.21026663302424747, "min": [0.0, 44.0, 24.0, 7.0, 14.0, 18.2, 0.078, 21.0], "max": [17.0, 199.0, 122.0, 99.0, 846.0, 67.1, 2.42, 81.0], "params": {"penalty": "l1", "C": 0.3, "class_weight": "balanced"}, "metrics": {"n_rows": 768, "positive_rate": 0.3489583333333333, "cv_auc": 0.8455509413067552, "repeated_auc_mean": 0.8371028651292803, "repeated_auc_std": 0.028132692416116212, "repeated_acc_mean": 0.7528528987352517, "repeated_acc_std": 0.03277711023579829, "test_auc": 0.8094444444444445, "test_recall": 0.7037037037037037}}/*MODEL_END*/;
+
+const FIELDS = [
+  { key: "Pregnancies", label: "Pregnancies", unit: "times", step: "1", hint: "Number of times pregnant" },
+  { key: "Glucose", label: "Glucose", unit: "mg/dL", step: "1", hint: "Plasma glucose, 2 h in an oral glucose tolerance test" },
+  { key: "BloodPressure", label: "Blood pressure", unit: "mm Hg", step: "1", hint: "Diastolic blood pressure" },
+  { key: "SkinThickness", label: "Skin thickness", unit: "mm", step: "1", hint: "Triceps skin fold thickness" },
+  { key: "Insulin", label: "Insulin", unit: "µU/mL", step: "1", hint: "2-hour serum insulin" },
+  { key: "BMI", label: "Body mass index", unit: "kg/m²", step: "0.1", hint: "Weight (kg) / height² (m²)" },
+  { key: "DiabetesPedigreeFunction", label: "Pedigree function", unit: "score", step: "0.001", hint: "Score based on family history of diabetes" },
+  { key: "Age", label: "Age", unit: "years", step: "1", hint: "The dataset covers ages 21 and up" }
+];
+const SHORT = {
+  Pregnancies: "Pregnancies", Glucose: "Glucose", BloodPressure: "Blood pressure", SkinThickness: "Skin thick.",
+  Insulin: "Insulin", BMI: "BMI", DiabetesPedigreeFunction: "Pedigree", Age: "Age"
+};
+const SAMPLE = { Pregnancies: 3, Glucose: 130, BloodPressure: 72, SkinThickness: "", Insulin: "", BMI: 32, DiabetesPedigreeFunction: 0.37, Age: 35 };
+const NOTE_DEFAULT = "Empty fields use the training-data median.";
+
+const form = document.getElementById("form");
+const inputs = {};
+const hints = {};
+
+FIELDS.forEach((f, i) => {
+  const wrap = document.createElement("div");
+  wrap.className = "field";
+  wrap.innerHTML =
+    '<label for="f-' + f.key + '">' + f.label + ' <span class="en">' + f.key + '</span></label>' +
+    '<div class="input-row"><input id="f-' + f.key + '" type="number" inputmode="decimal" step="' + f.step + '" min="0" placeholder="median: ' + MODEL.median[i] + '">' +
+    '<span class="unit">' + f.unit + '</span></div>' +
+    '<span class="hint">' + f.hint + '</span>';
+  form.appendChild(wrap);
+  inputs[f.key] = wrap.querySelector("input");
+  hints[f.key] = wrap.querySelector(".hint");
+  inputs[f.key].addEventListener("input", () => {
+    document.getElementById("sampleNote").textContent = NOTE_DEFAULT;
+    update();
+  });
+});
+
+function readValue(i, f) {
+  const raw = inputs[f.key].value.trim();
+  if (raw === "") return { v: MODEL.median[i], imputed: true, note: null };
+  const n = Number(raw);
+  if (!isFinite(n) || n < 0) return { v: MODEL.median[i], imputed: true, note: "Invalid value, median used" };
+  const lo = MODEL.min[i], hi = MODEL.max[i];
+  const note = (n < lo || n > hi) ? "Outside the training range (" + lo + "-" + hi + "), the estimate may be unreliable" : null;
+  return { v: n, imputed: false, note: note };
+}
+
+function predict() {
+  let logit = MODEL.intercept;
+  const parts = [];
+  let imputedCount = 0;
+  FIELDS.forEach((f, i) => {
+    const r = readValue(i, f);
+    const z = (r.v - MODEL.mean[i]) / MODEL.scale[i];
+    const c = MODEL.coef[i] * z;
+    logit += c;
+    if (r.imputed) imputedCount++;
+    parts.push({ key: f.key, c: c, imputed: r.imputed, note: r.note });
+  });
+  return { p: 1 / (1 + Math.exp(-logit)), parts: parts, imputedCount: imputedCount };
+}
+
+function fmt(c) { return (c >= 0 ? "+" : "−") + Math.abs(c).toFixed(2); }
+
+function update() {
+  const r = predict();
+  document.getElementById("num").textContent = Math.round(r.p * 100);
+  document.getElementById("marker").style.left = (r.p * 100).toFixed(1) + "%";
+  const badge = document.getElementById("badge");
+  const cls = r.p < 0.35 ? "low" : (r.p < 0.65 ? "mid" : "high");
+  badge.className = "badge " + cls;
+  badge.textContent = cls === "low" ? "Low" : (cls === "mid" ? "Medium" : "High");
+
+  const sorted = r.parts.slice().sort((a, b) => Math.abs(b.c) - Math.abs(a.c));
+  const box = document.getElementById("contrib");
+  box.innerHTML = "";
+  const MAXC = 3;
+  sorted.forEach(p => {
+    const w = Math.min(Math.abs(p.c) / MAXC, 1) * 50;
+    const up = p.c >= 0;
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML =
+      '<span class="name">' + SHORT[p.key] + (p.imputed ? ' <i>(median)</i>' : '') + '</span>' +
+      '<span class="track"><span class="fill ' + (up ? "up" : "down") + '" style="' + (up ? "left:50%" : "left:" + (50 - w) + "%") + ';width:' + w + '%"></span></span>' +
+      '<span class="val">' + fmt(p.c) + '</span>';
+    box.appendChild(row);
+  });
+
+  r.parts.forEach(p => {
+    const f = FIELDS.find(x => x.key === p.key);
+    const h = hints[p.key];
+    h.textContent = p.note || f.hint;
+    h.className = p.note ? "hint warn" : "hint";
+  });
+
+  document.getElementById("filledNote").textContent = r.imputedCount === 0
+    ? "All fields entered."
+    : r.imputedCount + (r.imputedCount === 1 ? " field is empty and uses" : " fields are empty and use") + " the training-data median.";
+}
+
+function renderModelInfo() {
+  const m = MODEL.metrics, p = MODEL.params;
+  const f3 = x => x.toFixed(3);
+  document.getElementById("m-cvauc").textContent = f3(m.cv_auc);
+  document.getElementById("m-repauc").innerHTML = f3(m.repeated_auc_mean) + " <small>± " + f3(m.repeated_auc_std) + "</small>";
+  document.getElementById("m-repacc").innerHTML = f3(m.repeated_acc_mean) + " <small>± " + f3(m.repeated_acc_std) + "</small>";
+  document.getElementById("m-test").innerHTML = "AUC " + f3(m.test_auc) + " <small>· recall " + m.test_recall.toFixed(2) + "</small>";
+  document.getElementById("m-desc").textContent =
+    "Data: " + m.n_rows + " rows, 8 inputs, target is a diabetes diagnosis (" + (m.positive_rate * 100).toFixed(1) + "% positive). " +
+    "Pipeline: median imputation, standardization, " + p.penalty.toUpperCase() + "-penalized logistic regression (C = " + p.C +
+    ", class_weight = " + p.class_weight + "). Zeros in glucose and blood pressure are treated as missing. " +
+    "Hyperparameters were selected by ROC-AUC with StratifiedKFold.";
+}
+
+function setValues(obj) {
+  FIELDS.forEach(f => { inputs[f.key].value = obj[f.key]; });
+  update();
+}
+
+document.getElementById("btnSample").addEventListener("click", () => {
+  setValues(SAMPLE);
+  document.getElementById("sampleNote").textContent = "Example values are loaded. " + NOTE_DEFAULT;
+});
+document.getElementById("btnClear").addEventListener("click", () => {
+  const empty = {};
+  FIELDS.forEach(f => { empty[f.key] = ""; });
+  setValues(empty);
+  document.getElementById("sampleNote").textContent = NOTE_DEFAULT;
+});
+form.addEventListener("submit", e => e.preventDefault());
+
+renderModelInfo();
+setValues(SAMPLE);
+</script>
+</body>
+</html>
